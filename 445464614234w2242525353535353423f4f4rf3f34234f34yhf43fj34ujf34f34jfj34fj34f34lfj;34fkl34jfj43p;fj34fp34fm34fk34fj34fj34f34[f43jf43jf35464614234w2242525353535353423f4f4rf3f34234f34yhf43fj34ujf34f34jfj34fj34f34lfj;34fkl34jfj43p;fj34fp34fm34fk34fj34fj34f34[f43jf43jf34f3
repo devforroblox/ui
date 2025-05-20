@@ -1,0 +1,753 @@
+-- NeuronUI Library (Compact Version)
+local NeuronUI = {}
+
+-- Services
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+
+-- Variables
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+local screenGui, mainFrame, contentFrame, sidebarFrame, logsFrame
+local logs = {}
+local activeTab = nil
+local tabs = {}
+local dragging, dragStart, startPos
+
+-- Colors (Blue-Greenish Theme)
+local COLORS = {
+    PRIMARY = Color3.fromRGB(0, 180, 170),      -- Teal/Blue-Green
+    SECONDARY = Color3.fromRGB(30, 40, 50),     -- Dark Blue-Gray
+    BACKGROUND = Color3.fromRGB(20, 25, 35),    -- Darker Blue-Gray
+    TEXT = Color3.fromRGB(255, 255, 255),       -- White
+    TEXT_SECONDARY = Color3.fromRGB(180, 180, 180), -- Light Gray
+    HOVER = Color3.fromRGB(0, 200, 190)         -- Lighter Teal
+}
+
+-- UI Creation Functions
+function NeuronUI:Init(title)
+    title = title or "Neuron UI"
+    
+    -- Create ScreenGui
+    screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "NeuronUI"
+    screenGui.ResetOnSpawn = false
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    screenGui.Parent = playerGui
+    
+    -- Create main frame (smaller size)
+    mainFrame = Instance.new("Frame")
+    mainFrame.Name = "MainFrame"
+    mainFrame.Size = UDim2.new(0, 450, 0, 300) -- Reduced from 600x350
+    mainFrame.Position = UDim2.new(0.5, -225, 0.5, -150)
+    mainFrame.BackgroundColor3 = COLORS.BACKGROUND
+    mainFrame.BorderSizePixel = 0
+    mainFrame.Parent = screenGui
+    
+    -- Add corner radius
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = mainFrame
+    
+    -- Create top bar
+    local topBar = Instance.new("Frame")
+    topBar.Name = "TopBar"
+    topBar.Size = UDim2.new(1, 0, 0, 25) -- Reduced from 30
+    topBar.BackgroundColor3 = COLORS.SECONDARY
+    topBar.BorderSizePixel = 0
+    topBar.Parent = mainFrame
+    
+    local topCorner = Instance.new("UICorner")
+    topCorner.CornerRadius = UDim.new(0, 6)
+    topCorner.Parent = topBar
+    
+    -- Create title
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Name = "Title"
+    titleLabel.Size = UDim2.new(1, -30, 1, 0)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Text = title
+    titleLabel.TextColor3 = COLORS.PRIMARY
+    titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.TextSize = 12 -- Reduced from 14
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.Parent = topBar
+    
+    local padding = Instance.new("UIPadding")
+    padding.PaddingLeft = UDim.new(0, 10)
+    padding.Parent = titleLabel
+    
+    -- Create close button
+    local closeButton = Instance.new("TextButton")
+    closeButton.Name = "CloseButton"
+    closeButton.Size = UDim2.new(0, 16, 0, 16) -- Reduced from 20x20
+    closeButton.Position = UDim2.new(1, -20, 0, 4) -- Adjusted position
+    closeButton.BackgroundColor3 = Color3.fromRGB(255, 70, 70)
+    closeButton.Text = "X"
+    closeButton.TextColor3 = COLORS.TEXT
+    closeButton.Font = Enum.Font.GothamBold
+    closeButton.TextSize = 10 -- Reduced from 12
+    closeButton.Parent = topBar
+    
+    local closeCorner = Instance.new("UICorner")
+    closeCorner.CornerRadius = UDim.new(0, 4)
+    closeCorner.Parent = closeButton
+    
+    -- Create sidebar frame
+    sidebarFrame = Instance.new("Frame")
+    sidebarFrame.Name = "Sidebar"
+    sidebarFrame.Size = UDim2.new(0, 100, 1, -25) -- Reduced from 120
+    sidebarFrame.Position = UDim2.new(0, 0, 0, 25)
+    sidebarFrame.BackgroundColor3 = COLORS.SECONDARY
+    sidebarFrame.BorderSizePixel = 0
+    sidebarFrame.Parent = mainFrame
+    
+    -- Create content frame
+    contentFrame = Instance.new("Frame")
+    contentFrame.Name = "Content"
+    contentFrame.Size = UDim2.new(1, -100, 1, -25) -- Adjusted for smaller sidebar
+    contentFrame.Position = UDim2.new(0, 100, 0, 25)
+    contentFrame.BackgroundColor3 = Color3.fromRGB(25, 30, 40) -- Slightly lighter than background
+    contentFrame.BorderSizePixel = 0
+    contentFrame.Parent = mainFrame
+    
+    -- Create logs frame
+    logsFrame = Instance.new("Frame")
+    logsFrame.Name = "LogsFrame"
+    logsFrame.Size = UDim2.new(1, 0, 0, 80) -- Reduced from 100
+    logsFrame.Position = UDim2.new(0, 0, 1, -80)
+    logsFrame.BackgroundColor3 = COLORS.BACKGROUND
+    logsFrame.BorderSizePixel = 0
+    logsFrame.Parent = contentFrame
+    
+    local logsLabel = Instance.new("TextLabel")
+    logsLabel.Name = "LogsLabel"
+    logsLabel.Size = UDim2.new(1, 0, 0, 18) -- Reduced from 20
+    logsLabel.BackgroundColor3 = COLORS.SECONDARY
+    logsLabel.BorderSizePixel = 0
+    logsLabel.Text = "Logs"
+    logsLabel.TextColor3 = COLORS.PRIMARY
+    logsLabel.Font = Enum.Font.GothamSemibold
+    logsLabel.TextSize = 10 -- Reduced from 12
+    logsLabel.Parent = logsFrame
+    
+    local logsScroll = Instance.new("ScrollingFrame")
+    logsScroll.Name = "LogsScroll"
+    logsScroll.Size = UDim2.new(1, 0, 1, -18)
+    logsScroll.Position = UDim2.new(0, 0, 0, 18)
+    logsScroll.BackgroundTransparency = 1
+    logsScroll.BorderSizePixel = 0
+    logsScroll.ScrollBarThickness = 3 -- Reduced from 4
+    logsScroll.ScrollBarImageColor3 = COLORS.PRIMARY
+    logsScroll.Parent = logsFrame
+    
+    local logsList = Instance.new("UIListLayout")
+    logsList.Padding = UDim.new(0, 2)
+    logsList.Parent = logsScroll
+    
+    -- Make UI draggable
+    topBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = mainFrame.Position
+            
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+    
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local delta = input.Position - dragStart
+            mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+    
+    -- Close button functionality
+    closeButton.MouseButton1Click:Connect(function()
+        screenGui:Destroy()
+    end)
+    
+    -- Add initial log
+    self:Log("UI initialized")
+    
+    return self
+end
+
+function NeuronUI:CreateTab(name)
+    -- Create tab button in sidebar
+    local tabButton = Instance.new("TextButton")
+    tabButton.Name = name .. "Tab"
+    tabButton.Size = UDim2.new(1, -10, 0, 25) -- Reduced from 30
+    tabButton.Position = UDim2.new(0, 5, 0, 5 + (#tabs * 30))
+    tabButton.BackgroundColor3 = COLORS.SECONDARY
+    tabButton.Text = name
+    tabButton.TextColor3 = COLORS.TEXT
+    tabButton.Font = Enum.Font.GothamSemibold
+    tabButton.TextSize = 10 -- Reduced from 12
+    tabButton.Parent = sidebarFrame
+    
+    local tabCorner = Instance.new("UICorner")
+    tabCorner.CornerRadius = UDim.new(0, 4)
+    tabCorner.Parent = tabButton
+    
+    -- Create tab content frame
+    local tabContent = Instance.new("ScrollingFrame")
+    tabContent.Name = name .. "Content"
+    tabContent.Size = UDim2.new(1, 0, 1, -80) -- Adjusted for logs frame
+    tabContent.BackgroundTransparency = 1
+    tabContent.BorderSizePixel = 0
+    tabContent.ScrollBarThickness = 3 -- Reduced from 4
+    tabContent.ScrollBarImageColor3 = COLORS.PRIMARY
+    tabContent.Visible = false
+    tabContent.Parent = contentFrame
+    
+    local contentList = Instance.new("UIListLayout")
+    contentList.Padding = UDim.new(0, 5)
+    contentList.Parent = tabContent
+    
+    local contentPadding = Instance.new("UIPadding")
+    contentPadding.PaddingTop = UDim.new(0, 5)
+    contentPadding.PaddingLeft = UDim.new(0, 5)
+    contentPadding.PaddingRight = UDim.new(0, 5)
+    contentPadding.Parent = tabContent
+    
+    -- Tab functionality
+    tabButton.MouseButton1Click:Connect(function()
+        if activeTab then
+            tabs[activeTab].button.BackgroundColor3 = COLORS.SECONDARY
+            tabs[activeTab].content.Visible = false
+        end
+        
+        tabButton.BackgroundColor3 = COLORS.PRIMARY
+        tabContent.Visible = true
+        activeTab = name
+        
+        self:Log("Switched to " .. name .. " tab")
+    end)
+    
+    -- Store tab information
+    tabs[name] = {
+        button = tabButton,
+        content = tabContent,
+        elements = {}
+    }
+    
+    -- Set as active tab if it's the first one
+    if #tabs == 0 then
+        tabButton.BackgroundColor3 = COLORS.PRIMARY
+        tabContent.Visible = true
+        activeTab = name
+    end
+    
+    -- Return tab object
+    local tab = {}
+    
+    function tab:AddButton(buttonText, callback)
+        return NeuronUI:AddButton(name, buttonText, callback)
+    end
+    
+    function tab:AddToggle(toggleText, default, callback)
+        return NeuronUI:AddToggle(name, toggleText, default, callback)
+    end
+    
+    function tab:AddDropdown(dropText, options, default, callback)
+        return NeuronUI:AddDropdown(name, dropText, options, default, callback)
+    end
+    
+    function tab:AddSlider(sliderText, min, max, default, callback)
+        return NeuronUI:AddSlider(name, sliderText, min, max, default, callback)
+    end
+    
+    return tab
+end
+
+function NeuronUI:AddButton(tabName, buttonText, callback)
+    local tab = tabs[tabName]
+    if not tab then return end
+    
+    local buttonContainer = Instance.new("Frame")
+    buttonContainer.Name = buttonText .. "Container"
+    buttonContainer.Size = UDim2.new(1, 0, 0, 28) -- Reduced from 35
+    buttonContainer.BackgroundTransparency = 1
+    buttonContainer.Parent = tab.content
+    
+    local button = Instance.new("TextButton")
+    button.Name = buttonText .. "Button"
+    button.Size = UDim2.new(1, 0, 1, 0)
+    button.BackgroundColor3 = COLORS.SECONDARY
+    button.Text = buttonText
+    button.TextColor3 = COLORS.PRIMARY
+    button.Font = Enum.Font.GothamSemibold
+    button.TextSize = 12 -- Reduced from 14
+    button.Parent = buttonContainer
+    
+    local buttonCorner = Instance.new("UICorner")
+    buttonCorner.CornerRadius = UDim.new(0, 4)
+    buttonCorner.Parent = button
+    
+    button.MouseButton1Click:Connect(function()
+        self:Log("Button clicked: " .. buttonText)
+        if callback then callback() end
+    end)
+    
+    -- Update canvas size
+    tab.content.CanvasSize = UDim2.new(0, 0, 0, tab.content.UIListLayout.AbsoluteContentSize.Y + 10)
+    
+    return button
+end
+
+function NeuronUI:AddToggle(tabName, toggleText, default, callback)
+    local tab = tabs[tabName]
+    if not tab then return end
+    
+    default = default or false
+    
+    local toggleContainer = Instance.new("Frame")
+    toggleContainer.Name = toggleText .. "Container"
+    toggleContainer.Size = UDim2.new(1, 0, 0, 28) -- Reduced from 35
+    toggleContainer.BackgroundTransparency = 1
+    toggleContainer.Parent = tab.content
+    
+    local toggleLabel = Instance.new("TextLabel")
+    toggleLabel.Name = "Label"
+    toggleLabel.Size = UDim2.new(1, -50, 1, 0)
+    toggleLabel.BackgroundTransparency = 1
+    toggleLabel.Text = toggleText
+    toggleLabel.TextColor3 = COLORS.TEXT
+    toggleLabel.Font = Enum.Font.Gotham
+    toggleLabel.TextSize = 12 -- Reduced from 14
+    toggleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    toggleLabel.Parent = toggleContainer
+    
+    local toggleButton = Instance.new("Frame")
+    toggleButton.Name = "ToggleButton"
+    toggleButton.Size = UDim2.new(0, 32, 0, 16) -- Reduced from 40x20
+    toggleButton.Position = UDim2.new(1, -40, 0.5, -8)
+    toggleButton.BackgroundColor3 = default and COLORS.PRIMARY or COLORS.SECONDARY
+    toggleButton.Parent = toggleContainer
+    
+    local toggleCorner = Instance.new("UICorner")
+    toggleCorner.CornerRadius = UDim.new(1, 0)
+    toggleCorner.Parent = toggleButton
+    
+    local toggleCircle = Instance.new("Frame")
+    toggleCircle.Name = "Circle"
+    toggleCircle.Size = UDim2.new(0, 12, 0, 12) -- Reduced from 16x16
+    toggleCircle.Position = default and UDim2.new(1, -14, 0.5, -6) or UDim2.new(0, 2, 0.5, -6)
+    toggleCircle.BackgroundColor3 = COLORS.TEXT
+    toggleCircle.Parent = toggleButton
+    
+    local circleCorner = Instance.new("UICorner")
+    circleCorner.CornerRadius = UDim.new(1, 0)
+    circleCorner.Parent = toggleCircle
+    
+    local enabled = default
+    
+    local function updateToggle()
+        enabled = not enabled
+        
+        local toggleInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+        local circleTween = TweenService:Create(toggleCircle, toggleInfo, {
+            Position = enabled and UDim2.new(1, -14, 0.5, -6) or UDim2.new(0, 2, 0.5, -6)
+        })
+        local colorTween = TweenService:Create(toggleButton, toggleInfo, {
+            BackgroundColor3 = enabled and COLORS.PRIMARY or COLORS.SECONDARY
+        })
+        
+        circleTween:Play()
+        colorTween:Play()
+        
+        self:Log("Toggle " .. toggleText .. " set to " .. tostring(enabled))
+        if callback then callback(enabled) end
+    end
+    
+    toggleButton.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            updateToggle()
+        end
+    end)
+    
+    -- Update canvas size
+    tab.content.CanvasSize = UDim2.new(0, 0, 0, tab.content.UIListLayout.AbsoluteContentSize.Y + 10)
+    
+    local toggle = {
+        Set = function(value)
+            if value ~= enabled then
+                updateToggle()
+            end
+        end,
+        Get = function()
+            return enabled
+        end
+    }
+    
+    return toggle
+end
+
+function NeuronUI:AddDropdown(tabName, dropText, options, default, callback)
+    local tab = tabs[tabName]
+    if not tab then return end
+    
+    options = options or {}
+    default = default or options[1] or ""
+    
+    local dropdownContainer = Instance.new("Frame")
+    dropdownContainer.Name = dropText .. "Container"
+    dropdownContainer.Size = UDim2.new(1, 0, 0, 50) -- Reduced from 60
+    dropdownContainer.BackgroundTransparency = 1
+    dropdownContainer.Parent = tab.content
+    
+    local dropdownLabel = Instance.new("TextLabel")
+    dropdownLabel.Name = "Label"
+    dropdownLabel.Size = UDim2.new(1, 0, 0, 16) -- Reduced from 20
+    dropdownLabel.BackgroundTransparency = 1
+    dropdownLabel.Text = dropText
+    dropdownLabel.TextColor3 = COLORS.TEXT
+    dropdownLabel.Font = Enum.Font.Gotham
+    dropdownLabel.TextSize = 12 -- Reduced from 14
+    dropdownLabel.TextXAlignment = Enum.TextXAlignment.Left
+    dropdownLabel.Parent = dropdownContainer
+    
+    local dropdownButton = Instance.new("TextButton")
+    dropdownButton.Name = "DropdownButton"
+    dropdownButton.Size = UDim2.new(1, 0, 0, 25) -- Reduced from 30
+    dropdownButton.Position = UDim2.new(0, 0, 0, 20)
+    dropdownButton.BackgroundColor3 = COLORS.SECONDARY
+    dropdownButton.Text = default
+    dropdownButton.TextColor3 = COLORS.PRIMARY
+    dropdownButton.Font = Enum.Font.GothamSemibold
+    dropdownButton.TextSize = 12 -- Reduced from 14
+    dropdownButton.Parent = dropdownContainer
+    
+    local dropdownCorner = Instance.new("UICorner")
+    dropdownCorner.CornerRadius = UDim.new(0, 4)
+    dropdownCorner.Parent = dropdownButton
+    
+    local dropdownArrow = Instance.new("TextLabel")
+    dropdownArrow.Name = "Arrow"
+    dropdownArrow.Size = UDim2.new(0, 16, 0, 16) -- Reduced from 20x20
+    dropdownArrow.Position = UDim2.new(1, -20, 0.5, -8)
+    dropdownArrow.BackgroundTransparency = 1
+    dropdownArrow.Text = "▼"
+    dropdownArrow.TextColor3 = COLORS.TEXT
+    dropdownArrow.Font = Enum.Font.GothamBold
+    dropdownArrow.TextSize = 10 -- Reduced from 14
+    dropdownArrow.Parent = dropdownButton
+    
+    local dropdownMenu = Instance.new("Frame")
+    dropdownMenu.Name = "DropdownMenu"
+    dropdownMenu.Size = UDim2.new(1, 0, 0, #options * 25) -- Reduced height per option
+    dropdownMenu.Position = UDim2.new(0, 0, 1, 5)
+    dropdownMenu.BackgroundColor3 = COLORS.SECONDARY
+    dropdownMenu.BorderSizePixel = 0
+    dropdownMenu.Visible = false
+    dropdownMenu.ZIndex = 10
+    dropdownMenu.Parent = dropdownButton
+    
+    local menuCorner = Instance.new("UICorner")
+    menuCorner.CornerRadius = UDim.new(0, 4)
+    menuCorner.Parent = dropdownMenu
+    
+    local menuList = Instance.new("UIListLayout")
+    menuList.Parent = dropdownMenu
+    
+    local selected = default
+    
+    for i, option in ipairs(options) do
+        local optionButton = Instance.new("TextButton")
+        optionButton.Name = option .. "Option"
+        optionButton.Size = UDim2.new(1, 0, 0, 25) -- Reduced from 30
+        optionButton.BackgroundTransparency = 1
+        optionButton.Text = option
+        optionButton.TextColor3 = COLORS.TEXT
+        optionButton.Font = Enum.Font.Gotham
+        optionButton.TextSize = 12 -- Reduced from 14
+        optionButton.ZIndex = 10
+        optionButton.Parent = dropdownMenu
+        
+        optionButton.MouseButton1Click:Connect(function()
+            selected = option
+            dropdownButton.Text = option
+            dropdownMenu.Visible = false
+            self:Log("Dropdown " .. dropText .. " set to " .. option)
+            if callback then callback(option) end
+        end)
+    end
+    
+    dropdownButton.MouseButton1Click:Connect(function()
+        dropdownMenu.Visible = not dropdownMenu.Visible
+    end)
+    
+    -- Close dropdown when clicking elsewhere
+    UserInputService.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            local mousePos = UserInputService:GetMouseLocation()
+            local buttonPos = dropdownButton.AbsolutePosition
+            local buttonSize = dropdownButton.AbsoluteSize
+            
+            if mousePos.X < buttonPos.X or mousePos.X > buttonPos.X + buttonSize.X or
+               mousePos.Y < buttonPos.Y or mousePos.Y > buttonPos.Y + buttonSize.Y then
+                dropdownMenu.Visible = false
+            end
+        end
+    end)
+    
+    -- Update canvas size
+    tab.content.CanvasSize = UDim2.new(0, 0, 0, tab.content.UIListLayout.AbsoluteContentSize.Y + 10)
+    
+    local dropdown = {
+        Set = function(value)
+            if table.find(options, value) then
+                selected = value
+                dropdownButton.Text = value
+                self:Log("Dropdown " .. dropText .. " set to " .. value)
+                if callback then callback(value) end
+            end
+        end,
+        Get = function()
+            return selected
+        end,
+        Refresh = function(newOptions, keepSelection)
+            dropdownMenu:ClearAllChildren()
+            menuList.Parent = dropdownMenu
+            
+            options = newOptions or {}
+            if not keepSelection or not table.find(options, selected) then
+                selected = options[1] or ""
+                dropdownButton.Text = selected
+            end
+            
+            dropdownMenu.Size = UDim2.new(1, 0, 0, #options * 25)
+            
+            for i, option in ipairs(options) do
+                local optionButton = Instance.new("TextButton")
+                optionButton.Name = option .. "Option"
+                optionButton.Size = UDim2.new(1, 0, 0, 25)
+                optionButton.BackgroundTransparency = 1
+                optionButton.Text = option
+                optionButton.TextColor3 = COLORS.TEXT
+                optionButton.Font = Enum.Font.Gotham
+                optionButton.TextSize = 12
+                optionButton.ZIndex = 10
+                optionButton.Parent = dropdownMenu
+                
+                optionButton.MouseButton1Click:Connect(function()
+                    selected = option
+                    dropdownButton.Text = option
+                    dropdownMenu.Visible = false
+                    self:Log("Dropdown " .. dropText .. " set to " .. option)
+                    if callback then callback(option) end
+                end)
+            end
+        end
+    }
+    
+    return dropdown
+end
+
+function NeuronUI:AddSlider(tabName, sliderText, min, max, default, callback)
+    local tab = tabs[tabName]
+    if not tab then return end
+    
+    min = min or 0
+    max = max or 100
+    default = default or min
+    
+    local sliderContainer = Instance.new("Frame")
+    sliderContainer.Name = sliderText .. "Container"
+    sliderContainer.Size = UDim2.new(1, 0, 0, 50) -- Reduced from 60
+    sliderContainer.BackgroundTransparency = 1
+    sliderContainer.Parent = tab.content
+    
+    local sliderLabel = Instance.new("TextLabel")
+    sliderLabel.Name = "Label"
+    sliderLabel.Size = UDim2.new(1, -50, 0, 16) -- Reduced from 20
+    sliderLabel.BackgroundTransparency = 1
+    sliderLabel.Text = sliderText
+    sliderLabel.TextColor3 = COLORS.TEXT
+    sliderLabel.Font = Enum.Font.Gotham
+    sliderLabel.TextSize = 12 -- Reduced from 14
+    sliderLabel.TextXAlignment = Enum.TextXAlignment.Left
+    sliderLabel.Parent = sliderContainer
+    
+    local valueLabel = Instance.new("TextLabel")
+    valueLabel.Name = "Value"
+    valueLabel.Size = UDim2.new(0, 40, 0, 16) -- Reduced from 20
+    valueLabel.Position = UDim2.new(1, -40, 0, 0)
+    valueLabel.BackgroundTransparency = 1
+    valueLabel.Text = tostring(default)
+    valueLabel.TextColor3 = COLORS.PRIMARY
+    valueLabel.Font = Enum.Font.GothamSemibold
+    valueLabel.TextSize = 12 -- Reduced from 14
+    valueLabel.Parent = sliderContainer
+    
+    local sliderTrack = Instance.new("Frame")
+    sliderTrack.Name = "Track"
+    sliderTrack.Size = UDim2.new(1, 0, 0, 5) -- Reduced from 6
+    sliderTrack.Position = UDim2.new(0, 0, 0, 25)
+    sliderTrack.BackgroundColor3 = COLORS.SECONDARY
+    sliderTrack.BorderSizePixel = 0
+    sliderTrack.Parent = sliderContainer
+    
+    local trackCorner = Instance.new("UICorner")
+    trackCorner.CornerRadius = UDim.new(1, 0)
+    trackCorner.Parent = sliderTrack
+    
+    local sliderFill = Instance.new("Frame")
+    sliderFill.Name = "Fill"
+    sliderFill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
+    sliderFill.BackgroundColor3 = COLORS.PRIMARY
+    sliderFill.BorderSizePixel = 0
+    sliderFill.Parent = sliderTrack
+    
+    local fillCorner = Instance.new("UICorner")
+    fillCorner.CornerRadius = UDim.new(1, 0)
+    fillCorner.Parent = sliderFill
+    
+    local sliderThumb = Instance.new("Frame")
+    sliderThumb.Name = "Thumb"
+    sliderThumb.Size = UDim2.new(0, 12, 0, 12) -- Reduced from 14x14
+    sliderThumb.Position = UDim2.new(1, -6, 0.5, -6)
+    sliderThumb.BackgroundColor3 = COLORS.TEXT
+    sliderThumb.Parent = sliderFill
+    
+    local thumbCorner = Instance.new("UICorner")
+    thumbCorner.CornerRadius = UDim.new(1, 0)
+    thumbCorner.Parent = sliderThumb
+    
+    local value = default
+    local dragging = false
+    
+    -- Fixed slider functionality
+    local function updateSlider(input)
+        local trackPos = sliderTrack.AbsolutePosition.X
+        local trackWidth = sliderTrack.AbsoluteSize.X
+        local mousePos = input.Position.X
+        
+        -- Calculate position percentage (clamped between 0 and 1)
+        local position = math.clamp((mousePos - trackPos) / trackWidth, 0, 1)
+        
+        -- Calculate value based on min/max range
+        local newValue = math.floor(min + (position * (max - min)) + 0.5)
+        newValue = math.clamp(newValue, min, max)
+        
+        -- Update value
+        value = newValue
+        valueLabel.Text = tostring(newValue)
+        
+        -- Update slider fill
+        sliderFill.Size = UDim2.new(position, 0, 1, 0)
+        
+        if callback then callback(newValue) end
+    end
+    
+    -- Input handling for slider
+    sliderTrack.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            updateSlider(input)
+            self:Log("Slider " .. sliderText .. " changed to " .. tostring(value))
+        end
+    end)
+    
+    sliderTrack.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+    
+    -- Make thumb draggable too
+    sliderThumb.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+        end
+    end)
+    
+    sliderThumb.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+    
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            updateSlider(input)
+            self:Log("Slider " .. sliderText .. " changed to " .. tostring(value))
+        end
+    end)
+    
+    -- Update canvas size
+    tab.content.CanvasSize = UDim2.new(0, 0, 0, tab.content.UIListLayout.AbsoluteContentSize.Y + 10)
+    
+    local slider = {
+        Set = function(newValue)
+            newValue = math.clamp(newValue, min, max)
+            value = newValue
+            valueLabel.Text = tostring(newValue)
+            
+            local position = (newValue - min) / (max - min)
+            sliderFill.Size = UDim2.new(position, 0, 1, 0)
+            
+            self:Log("Slider " .. sliderText .. " set to " .. tostring(newValue))
+            if callback then callback(newValue) end
+        end,
+        Get = function()
+            return value
+        end
+    }
+    
+    return slider
+end
+
+function NeuronUI:Log(message, color)
+    color = color or COLORS.TEXT
+    
+    local logsScroll = logsFrame.LogsScroll
+    
+    local logEntry = Instance.new("TextLabel")
+    logEntry.Size = UDim2.new(1, -10, 0, 16) -- Reduced from 20
+    logEntry.BackgroundTransparency = 1
+    logEntry.Text = "[" .. os.date("%H:%M:%S") .. "] " .. message
+    logEntry.TextColor3 = color
+    logEntry.Font = Enum.Font.Gotham
+    logEntry.TextSize = 10 -- Reduced from 12
+    logEntry.TextXAlignment = Enum.TextXAlignment.Left
+    logEntry.TextWrapped = true
+    logEntry.Parent = logsScroll
+    
+    table.insert(logs, {
+        text = message,
+        time = os.time()
+    })
+    
+    -- Limit logs to 100 entries
+    if #logs > 100 then
+        table.remove(logs, 1)
+        logsScroll:GetChildren()[2]:Destroy()
+    end
+    
+    -- Update canvas size
+    logsScroll.CanvasSize = UDim2.new(0, 0, 0, logsScroll.UIListLayout.AbsoluteContentSize.Y)
+    logsScroll.CanvasPosition = Vector2.new(0, logsScroll.UIListLayout.AbsoluteContentSize.Y)
+end
+
+function NeuronUI:ClearLogs()
+    local logsScroll = logsFrame.LogsScroll
+    
+    for _, child in pairs(logsScroll:GetChildren()) do
+        if child:IsA("TextLabel") then
+            child:Destroy()
+        end
+    end
+    
+    logs = {}
+    logsScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+end
+
+return NeuronUI
